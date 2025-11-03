@@ -38,6 +38,13 @@ def softmax(X):
     """
     res = np.zeros(X.shape)
     ### YOUR CODE HERE
+    max = np.amax(X, axis=1, keepdims=True)
+
+    logsum = max + np.log(np.sum(np.exp(X - max), axis=1, keepdims=True))
+
+    log_softmax = X - logsum
+
+    res = np.exp(log_softmax)
     ### END CODE
     return res
 
@@ -51,6 +58,7 @@ def relu(x):
         Beware of np.max and look at np.maximum
     """
     ### YOUR CODE HERE
+    res = np.maximum(x, 0)
     ### END CODE
     return res
 
@@ -96,8 +104,18 @@ class NetClassifier():
             params = self.params
         pred = None
         ### YOUR CODE HERE
-        ### END CODE
+        W1 = params['W1']
+        b1 = params['b1']
+        W2 = params['W2']
+        b2 = params['b2']
+
+        pred1 = relu(np.dot(X, W1) + b1)
+        pred2 = np.dot(pred1, W2) + b2
+        score = softmax(pred2)
+
+        pred = np.argmax(score, axis=1)
         return pred
+        ### END CODE
      
     def score(self, X, y, params=None):
         """ Compute accuracy of model on data X with labels y (mean 0-1 loss)
@@ -112,10 +130,15 @@ class NetClassifier():
         """
         if params is None:
             params = self.params
-        acc = None
+        acc = 0
         ### YOUR CODE HERE
+        n = X.shape[0]
+        pred = self.predict(X, params)
+        for i in range(n):
+            if y[i] == pred[i]:
+                acc += 1
         ### END CODE
-        return acc
+        return acc / n
     
     @staticmethod
     def cost_grad(X, y, params, c=0.0):
@@ -153,9 +176,42 @@ class NetClassifier():
         labels = one_in_k_encoding(y, W2.shape[1]) # shape n x k
                         
         ### YOUR CODE HERE - FORWARD PASS - compute cost with weight decay and store relevant values for backprop
+        # all the relevant values for the backprop
+        n = X.shape[0]
+        l1 = np.dot(X, W1) + b1
+        h1 = relu(l1)
+        l2 = np.dot(h1, W2) + b2
+        res = softmax(l2)
+
+        crossEntropy = (-np.sum(labels * np.log(res))) / n
+        regularization = (c / 2) * (np.sum(W1**2) + np.sum(W2**2))
+
+        cost = crossEntropy + regularization
         ### END CODE
-        
+
         ### YOUR CODE HERE - BACKWARDS PASS - compute derivatives of all weights and bias, store them in d_w1, d_w2, d_b1, d_b2
+        # softmax
+        d_softmax = (res - labels) / n
+
+        # w2 b2 berechnen
+        d_w2 = np.dot(h1.T, d_softmax) + c * W2
+        d_b2 = np.sum(d_softmax, axis=0, keepdims=True)
+
+        # layer2 chain rule
+        d_l2 = np.dot(d_softmax, W2.T)
+
+        # ReLu
+        d_h1 = d_l2 * (l1 > 0)
+
+        # layer 1 chain rule
+        d_w1 = np.dot(X.T, d_h1) + c * W1
+        d_b1 = np.sum(d_h1, axis=0, keepdims=True)
+
+        # 1. Softmax Ableitung L nach l2 = softmax(l2) - y
+        # 2. Kettenregel bei l2
+        # 3. Ableitung Relu Funktion
+        # 4. Kettenregel bei l1
+        # 5. Ableitung vom Weight Decay
         ### END CODE
         # the return signature
         return cost, {'d_w1': d_w1, 'd_w2': d_w2, 'd_b1': d_b1, 'd_b2': d_b2}
@@ -186,15 +242,48 @@ class NetClassifier():
         b1 = init_params['b1']
         W2 = init_params['W2']
         b2 = init_params['b2']
+
+        params = {'W1':W1, 'b1':b1, 'W2':W2, 'b2':b2}
+
         hist = {
-            'train_loss': None,
-            'train_acc': None,
-            'val_loss': None,
-            'val_acc': None, 
+            'train_loss': [],
+            'train_acc': [],
+            'val_loss': [],
+            'val_acc': [],
         }
 
-        
         ### YOUR CODE HERE
+        for epoch in range(epochs):
+
+            permutation = np.random.permutation(X_train.shape[0])
+
+            for i in range(0, X_train.shape[0], batch_size):
+                x_batch = X_train[permutation[i:i + batch_size]]  # data for batch i
+                y_batch = y_train[permutation[i:i + batch_size]]  # data for batch i
+
+                _, grad = self.cost_grad(x_batch, y_batch, params, c=c)
+
+                W1 -= lr * grad['W1']
+                b1 -= lr * grad['b1']
+                W2 -= lr * grad['W2']
+                b2 -= lr * grad['b2']
+
+                params = {'W1': W1, 'b1': b1, 'W2': W2, 'b2': b2}
+
+            cost, _ = self.cost_grad(X_train, y_train, params, c=c)
+            hist['train_loss'].append(cost)
+            hist['train_acc'].append(self.score(X_train, y_train, params))
+
+            cost_val, _ = self.cost_grad(X_val, y_val, params, c=c)
+            hist['val_loss'].append(cost_val)
+            hist['val_acc'].append(self.score(X_val, y_val, params))
+
+            print(f"Epoch {epoch + 1}/{epochs}: "
+                  f"Train loss={cost:.4f}, acc={hist['train_acc'][-1]:.3f}, "
+                  f"Val loss={cost_val:.4f}, acc={hist['val_acc'][-1]:.3f}")
+
+            ##self.params = params schauen ob ich das brauche kommt auf die Aufgaben an
+
         ### END CODE
         # hist dict should look like this with something different than none
         #hist = {'train_loss': None, 'train_acc': None, 'val_loss': None, 'val_acc': None}
