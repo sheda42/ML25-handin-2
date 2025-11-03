@@ -263,10 +263,10 @@ class NetClassifier():
 
                 _, grad = self.cost_grad(x_batch, y_batch, params, c=c)
 
-                W1 -= lr * grad['W1']
-                b1 -= lr * grad['b1']
-                W2 -= lr * grad['W2']
-                b2 -= lr * grad['b2']
+                W1 -= lr * grad['d_w1']
+                b1 -= lr * grad['d_b1']
+                W2 -= lr * grad['d_w2']
+                b2 -= lr * grad['d_b2']
 
                 params = {'W1': W1, 'b1': b1, 'W2': W2, 'b2': b2}
 
@@ -282,7 +282,7 @@ class NetClassifier():
                   f"Train loss={cost:.4f}, acc={hist['train_acc'][-1]:.3f}, "
                   f"Val loss={cost_val:.4f}, acc={hist['val_acc'][-1]:.3f}")
 
-            ##self.params = params schauen ob ich das brauche kommt auf die Aufgaben an
+            self.params = params
 
         ### END CODE
         # hist dict should look like this with something different than none
